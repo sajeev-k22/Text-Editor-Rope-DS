@@ -1,4 +1,3 @@
-
 class Operation:
     INSERT=1
     DELETE=2
@@ -157,7 +156,7 @@ class Rope:
             return left_str + right_str
         else:
             # Base case, leaf node
-            if idx+n >= self.strlen:
+            if idx > self.strlen or idx + n > self.strlen: # Corrected condition
                 raise IndexError("Invalid index used with get_substring()")
             else:
                 return self.str[idx:idx+n]
@@ -412,75 +411,123 @@ class TextEditor:
 
         index_list = []
 
-        h = pow(base, pat_len-1)%prime
+        h = pow(base, pat_len - 1, prime) # Precompute base^(pat_len-1) % prime
 
-        # Calculate hash value of pattern and first window 
+        if pat_len == 0:
+            return []
+        if pat_len > str_len:
+            return []
+
+        # Calculate hash value of pattern and first window of text
         for i in range(pat_len):
-            pat_hash += ord(sub[i])*base%prime
-            str_hash += ord(st[i])*base%prime
+            pat_hash = (base * pat_hash + ord(sub[i])) % prime
+            str_hash = (base * str_hash + ord(st[i])) % prime
     
-        # Iterate through rest of string
-        for i in range(str_len-pat_len+1):
-            # Check if the current part of string hash matches pattern hash
+        # Slide the pattern over text one by one
+        for i in range(str_len - pat_len + 1):
+            # Check the hash values of current window of text and pattern
+            # If the hash values match then only check for characters one by one
             if pat_hash == str_hash:
-                # Check if the pattern characters and string characters match
-                j = 0
-                while j < pat_len:
+                match = True
+                for j in range(pat_len):
                     if st[i+j] != sub[j]:
+                        match = False
                         break
-                    j += 1
-                # If it matches print index
-                if j == pat_len:
+                if match:
                     index_list.append(i)
             
-            # Calculate hash for next window 
-            # Remove the last digit, add next digit
-            if i < str_len-pat_len:
-                str_hash -= ord(st[i])*base%prime
-                str_hash += ord(st[i+pat_len])*base%prime
+            # Calculate hash value for next window of text: Remove leading digit,
+            # add trailing digit
+            if i < str_len - pat_len:
+                # Remove leading character's hash contribution
+                str_hash = (str_hash - ord(st[i]) * h) % prime
+                # Add new character's hash contribution
+                str_hash = (base * str_hash + ord(st[i+pat_len])) % prime
+                # Ensure hash is non-negative
                 if str_hash < 0:
                     str_hash += prime
         return index_list
  
-te = TextEditor()
-done = False
-while not done:
-    op = input().lower().split()
-    if op[0] == 'i':
-        idx = int(op[1])
-        line = input()
-        te.insert_string(idx, line)
-    elif op[0] == 'p':
-        if len(op) == 1:
-            print(te.get_string())
-        else:
-            print(te.get_substring(int(op[1]), int(op[2])))
-    elif op[0] == 'd':
-        print(te.delete_chars(int(op[1]), int(op[2])))
-    elif op[0] == 'f':
-        print(te.search_string(op[1]))
-    elif op[0] == 'r':
-        if te.redo():
-            print("Redo successful")
-        else:
-            print("No operation to redo")
-    elif op[0] == "u":
-        if te.undo():
-            print("Undo successful")
-        else:
-            print("No operation to undo")
-    elif op[0] == "ex":
-        print("Exiting...")
-        done = True
-    elif op[0] == "l":
-        print(f'Length: {te.length()}')
-    elif op[0] == "h":
-        print("TextEditor\nOperations: ")
-        print("p - print string")
-        print("p [idx] [n] - print n chars starting from index idx")
-        print("d [idx] [n] - delete n chars starting from index idx")
-        print("i [idx] - insert into index idx, string to be inserted should be entered next")
-        print("l - print length")
-        print("u - undo")
-        print("r - redo")
-        print("ex - exit")
+if __name__ == '__main__':
+    te = TextEditor()
+    done = False
+    while not done:
+        try:
+            op = input().lower().split()
+            if not op: # Handle empty input
+                continue
+            if op[0] == 'i':
+                if len(op) > 1:
+                    idx = int(op[1])
+                    line = input("Enter string to insert: ")
+                    te.insert_string(idx, line)
+                else:
+                    print("Usage: i [index]")
+            elif op[0] == 'p':
+                if len(op) == 1:
+                    print(te.get_string())
+                elif len(op) == 3:
+                    try:
+                        print(te.get_substring(int(op[1]), int(op[2])))
+                    except IndexError:
+                        print("Error: Index out of bounds for substring.")
+                    except ValueError:
+                        print("Error: Invalid index or length for substring.")
+                else:
+                    print("Usage: p OR p [index] [length]")
+            elif op[0] == 'd':
+                if len(op) == 3:
+                    try:
+                        # delete_chars in TextEditor currently doesn't return the deleted string,
+                        # but the sample commands imply it prints something.
+                        # For now, let's assume it should print a confirmation or the operation itself.
+                        # The original code had `print(te.delete_chars(int(op[1]), int(op[2])))`
+                        # which would print None. Let's make it more informative.
+                        deleted_substring = te.get_substring(int(op[1]), int(op[2])) # Get before deleting for undo
+                        te.delete_chars(int(op[1]), int(op[2]))
+                        print(f"Deleted: '{deleted_substring}'")
+                    except IndexError:
+                        print("Error: Index out of bounds for delete.")
+                    except ValueError:
+                        print("Error: Invalid index or count for delete.")
+                else:
+                    print("Usage: d [index] [length]")
+            elif op[0] == 'f':
+                if len(op) > 1:
+                    print(te.search_string(op[1]))
+                else:
+                    print("Usage: f [substring]")
+            elif op[0] == 'r':
+                if te.redo():
+                    print("Redo successful")
+                else:
+                    print("No operation to redo")
+            elif op[0] == "u":
+                if te.undo():
+                    print("Undo successful")
+                else:
+                    print("No operation to undo")
+            elif op[0] == "ex":
+                print("Exiting...")
+                done = True
+            elif op[0] == "l":
+                print(f'Length: {te.length()}')
+            elif op[0] == "h":
+                print("\nTextEditor Commands:")
+                print("  i [index]          - Insert string at index (prompts for string)")
+                print("  p                  - Print the entire string")
+                print("  p [index] [length] - Print substring")
+                print("  d [index] [length] - Delete characters")
+                print("  f [substring]      - Find all occurrences of substring")
+                print("  u                  - Undo last operation")
+                print("  r                  - Redo last undone operation")
+                print("  l                  - Print total length of the string")
+                print("  h                  - Display this help message")
+                print("  ex                 - Exit the editor\n")
+            else:
+                print(f"Unknown command: {op[0]}. Type 'h' for help.")
+        except EOFError:
+            print("\nExiting due to EOF (Ctrl+D).")
+            done = True
+        except Exception as e:
+            print(f"An error occurred: {e}")
